@@ -1,5 +1,5 @@
 # ModQuad
-There are small differences in this firmware to account for necessary functionalities of the [ModQuad Project](https://github.com/swarmslab/modquad-simulator). for details.
+There are small differences in this firmware to account for necessary functionalities of the [ModQuad Project](https://github.com/swarmslab/modquad-simulator).
 
 # Crazyflie Firmware  [![Build Status](https://api.travis-ci.org/bitcraze/crazyflie-firmware.svg)](https://travis-ci.org/bitcraze/crazyflie-firmware)
 
