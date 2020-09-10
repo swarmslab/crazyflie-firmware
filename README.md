@@ -1,3 +1,6 @@
+# ModQuad
+There are small differences in this firmware to account for necessary functionalities of the ModQuad project. See the [ModQuad Project](https://github.com/swarmslab/modquad-simulator) for details.
+
 # Crazyflie Firmware  [![Build Status](https://api.travis-ci.org/bitcraze/crazyflie-firmware.svg)](https://travis-ci.org/bitcraze/crazyflie-firmware)
 
 This project contains the source code for the firmware used in the Crazyflie range of platforms, including
