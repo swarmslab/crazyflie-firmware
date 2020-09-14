@@ -321,6 +321,12 @@ CFLAGS += $(PROCESSOR) $(INCLUDES)
 
 
 CFLAGS += -Wall -Wmissing-braces -fno-strict-aliasing $(C_PROFILE) -std=gnu11
+
+#### ModQuad: Add -Wno-address-of-packed-member, that seems to be present in 
+####		new GCC and not accounted for in this repo
+CFLAGS += -Wno-address-of-packed-member
+
+
 # Compiler flags to generate dependency files:
 CFLAGS += -MD -MP -MF $(BIN)/dep/$(@).d -MQ $(@)
 #Permits to remove un-used functions and global variables from output file
