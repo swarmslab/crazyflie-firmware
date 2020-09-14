@@ -1,6 +1,8 @@
 # ModQuad
 There are small differences in this firmware to account for necessary functionalities of the [ModQuad Project](https://github.com/swarmslab/modquad-simulator).
 
+The file in src/modules/src/power_distribution_stock.c has been modified. The Makefile is set to ignore -Waddress-of-packed-member as this warning is turned into many errors. This seems to be related to GCC version and might be fixed in future releases of crazyflie-firmware. For now, the warning has only been disabled to allow for compilation.
+
 # Crazyflie Firmware  [![Build Status](https://api.travis-ci.org/bitcraze/crazyflie-firmware.svg)](https://travis-ci.org/bitcraze/crazyflie-firmware)
 
 This project contains the source code for the firmware used in the Crazyflie range of platforms, including
