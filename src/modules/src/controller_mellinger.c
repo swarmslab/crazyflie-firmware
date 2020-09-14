@@ -72,9 +72,19 @@ static float kw_z = 12000; // D
 static float ki_m_z = 500; // I
 static float i_range_m_z  = 1500;
 
+// F-plane parameters
+static float rp11 = 1.0;
+static float rp12 = 0.0;
+static float rp13 = 0.0;
+static float rp21 = 0.0;
+static float rp22 = 1.0;
+static float rp23 = 0.0;
+static float rp31 = 0.0;
+static float rp32 = 0.0;
+static float rp33 = 1.0;
+
 // roll and pitch angular velocity
 static float kd_omega_rp = 200; // D
-
 
 // Helper variables
 static float i_error_x = 0;
@@ -122,11 +132,19 @@ bool controllerMellingerTest(void)
   return true;
 }
 
+
 void controllerMellinger(control_t *control, setpoint_t *setpoint,
                                          const sensorData_t *sensors,
                                          const state_t *state,
                                          const uint32_t tick)
 {
+  /**************************************
+  Alright we need some comments:
+    control: output vector: [f, tau1, tau2, tau3]
+    setpoint: desired attitude/position, linear/angular velocity, linear acceleration
+    sensors: linear acceleration and angular velocity from sensors
+    state: the attitude, position and linear velocity, acceleration without z
+  **************************************/
   struct vec r_error;
   struct vec v_error;
   struct vec target_thrust;
@@ -193,10 +211,21 @@ void controllerMellinger(control_t *control, setpoint_t *setpoint,
     desiredYaw = degrees(rpy.z);
   }
 
-  // Z-Axis [zB]
+  // F-axis
+  // tilting angles of propellers
+  struct mat33 Rsp = mcolumns(
+    mkvec(rp11, rp21, rp31),
+    mkvec(rp12, rp22, rp32),
+    mkvec(rp13, rp23, rp33));
+
+  struct mat33 Rsp_transpose = mcolumns(
+    mkvec(rp11, rp12, rp13),
+    mkvec(rp21, rp22, rp23),
+    mkvec(rp31, rp32, rp33));
+
   struct quat q = mkquat(state->attitudeQuaternion.x, state->attitudeQuaternion.y, state->attitudeQuaternion.z, state->attitudeQuaternion.w);
   struct mat33 R = quat2rotmat(q);
-  z_axis = mcolumn(R, 2);
+  z_axis = mcolumn(mmul(R, Rsp), 2);
 
   // yaw correction (only if position control is not used)
   if (setpoint->mode.x != modeAbs) {
@@ -226,31 +255,31 @@ void controllerMellinger(control_t *control, setpoint_t *setpoint,
 
   // [eR]
   // Slow version
-  // struct mat33 Rdes = mcolumns(
-  //   mkvec(x_axis_desired.x, x_axis_desired.y, x_axis_desired.z),
-  //   mkvec(y_axis_desired.x, y_axis_desired.y, y_axis_desired.z),
-  //   mkvec(z_axis_desired.x, z_axis_desired.y, z_axis_desired.z));
+  struct mat33 Rdes = mcolumns(
+    mkvec(x_axis_desired.x, x_axis_desired.y, x_axis_desired.z),
+    mkvec(y_axis_desired.x, y_axis_desired.y, y_axis_desired.z),
+    mkvec(z_axis_desired.x, z_axis_desired.y, z_axis_desired.z));
 
-  // struct mat33 R_transpose = mtranspose(R);
-  // struct mat33 Rdes_transpose = mtranspose(Rdes);
+  struct mat33 R_transpose = mtranspose(R);
+  struct mat33 Rdes_transpose = mtranspose(Rdes);
 
-  // struct mat33 eRM = msub(mmult(Rdes_transpose, R), mmult(R_transpose, Rdes));
+  struct mat33 eRM = msub(mmul(mmul(Rdes_transpose, R), Rsp), mmul(Rsp_transpose, mmul(R_transpose, Rdes)));
 
-  // eR.x = eRM.m[2][1];
-  // eR.y = -eRM.m[0][2];
-  // eR.z = eRM.m[1][0];
+  eR.x = eRM.m[2][1];
+  eR.y = -eRM.m[0][2];
+  eR.z = eRM.m[1][0];
 
-  // Fast version (generated using Mathematica)
-  float x = q.x;
-  float y = q.y;
-  float z = q.z;
-  float w = q.w;
-  eR.x = (-1 + 2*fsqr(x) + 2*fsqr(y))*y_axis_desired.z + z_axis_desired.y - 2*(x*y_axis_desired.x*z + y*y_axis_desired.y*z - x*y*z_axis_desired.x + fsqr(x)*z_axis_desired.y + fsqr(z)*z_axis_desired.y - y*z*z_axis_desired.z) +    2*w*(-(y*y_axis_desired.x) - z*z_axis_desired.x + x*(y_axis_desired.y + z_axis_desired.z));
-  eR.y = x_axis_desired.z - z_axis_desired.x - 2*(fsqr(x)*x_axis_desired.z + y*(x_axis_desired.z*y - x_axis_desired.y*z) - (fsqr(y) + fsqr(z))*z_axis_desired.x + x*(-(x_axis_desired.x*z) + y*z_axis_desired.y + z*z_axis_desired.z) + w*(x*x_axis_desired.y + z*z_axis_desired.y - y*(x_axis_desired.x + z_axis_desired.z)));
-  eR.z = y_axis_desired.x - 2*(y*(x*x_axis_desired.x + y*y_axis_desired.x - x*y_axis_desired.y) + w*(x*x_axis_desired.z + y*y_axis_desired.z)) + 2*(-(x_axis_desired.z*y) + w*(x_axis_desired.x + y_axis_desired.y) + x*y_axis_desired.z)*z - 2*y_axis_desired.x*fsqr(z) + x_axis_desired.y*(-1 + 2*fsqr(x) + 2*fsqr(z));
-
-  // Account for Crazyflie coordinate system
-  eR.y = -eR.y;
+  // // Fast version (generated using Mathematica)
+  // float x = q.x;
+  // float y = q.y;
+  // float z = q.z;
+  // float w = q.w;
+  // eR.x = (-1 + 2*fsqr(x) + 2*fsqr(y))*y_axis_desired.z + z_axis_desired.y - 2*(x*y_axis_desired.x*z + y*y_axis_desired.y*z - x*y*z_axis_desired.x + fsqr(x)*z_axis_desired.y + fsqr(z)*z_axis_desired.y - y*z*z_axis_desired.z) +    2*w*(-(y*y_axis_desired.x) - z*z_axis_desired.x + x*(y_axis_desired.y + z_axis_desired.z));
+  // eR.y = x_axis_desired.z - z_axis_desired.x - 2*(fsqr(x)*x_axis_desired.z + y*(x_axis_desired.z*y - x_axis_desired.y*z) - (fsqr(y) + fsqr(z))*z_axis_desired.x + x*(-(x_axis_desired.x*z) + y*z_axis_desired.y + z*z_axis_desired.z) + w*(x*x_axis_desired.y + z*z_axis_desired.y - y*(x_axis_desired.x + z_axis_desired.z)));
+  // eR.z = y_axis_desired.x - 2*(y*(x*x_axis_desired.x + y*y_axis_desired.x - x*y_axis_desired.y) + w*(x*x_axis_desired.z + y*y_axis_desired.z)) + 2*(-(x_axis_desired.z*y) + w*(x_axis_desired.x + y_axis_desired.y) + x*y_axis_desired.z)*z - 2*y_axis_desired.x*fsqr(z) + x_axis_desired.y*(-1 + 2*fsqr(x) + 2*fsqr(z));
+  //
+  // // Account for Crazyflie coordinate system
+  // eR.y = -eR.y;
 
   // [ew]
   float err_d_roll = 0;
@@ -360,3 +389,27 @@ LOG_ADD(LOG_FLOAT, i_err_x, &i_error_x)
 LOG_ADD(LOG_FLOAT, i_err_y, &i_error_y)
 LOG_ADD(LOG_FLOAT, i_err_z, &i_error_z)
 LOG_GROUP_STOP(ctrlMel)
+
+PARAM_GROUP_START(FplaneParams)
+PARAM_ADD(PARAM_FLOAT, rp11, &rp11)
+PARAM_ADD(PARAM_FLOAT, rp12, &rp12)
+PARAM_ADD(PARAM_FLOAT, rp13, &rp13)
+PARAM_ADD(PARAM_FLOAT, rp21, &rp21)
+PARAM_ADD(PARAM_FLOAT, rp22, &rp22)
+PARAM_ADD(PARAM_FLOAT, rp23, &rp23)
+PARAM_ADD(PARAM_FLOAT, rp31, &rp31)
+PARAM_ADD(PARAM_FLOAT, rp32, &rp32)
+PARAM_ADD(PARAM_FLOAT, rp33, &rp33)
+PARAM_GROUP_STOP(FplaneParams)
+//
+// LOG_GROUP_START(FplaneParams)
+// LOG_ADD(LOG_FLOAT, rp11, &rp11)
+// LOG_ADD(LOG_FLOAT, rp12, &rp12)
+// LOG_ADD(LOG_FLOAT, rp13, &rp13)
+// LOG_ADD(LOG_FLOAT, rp21, &rp21)
+// LOG_ADD(LOG_FLOAT, rp22, &rp22)
+// LOG_ADD(LOG_FLOAT, rp23, &rp23)
+// LOG_ADD(LOG_FLOAT, rp31, &rp31)
+// LOG_ADD(LOG_FLOAT, rp32, &rp32)
+// LOG_ADD(LOG_FLOAT, rp33, &rp33)
+// LOG_GROUP_STOP(FplaneParams)
