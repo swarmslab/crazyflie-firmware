@@ -22,6 +22,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  * power_distribution_stock.c - Crazyflie stock power distribution code
+ *
+ * --------------------------------------------------------------------
+ * --------------------------------------------------------------------
+ * Changes made for ModQuad are denoted with ***...*** comment blocks
+ *
  */
 #define DEBUG_MODULE "PWR_DIST"
 
@@ -35,84 +40,132 @@
 #include "motors.h"
 #include "debug.h"
 
+/* stock */
 static bool motorSetEnable = false;
 
+/* modquad var */
+static uint16_t motor_set_timer = 0;
+
+/* more modquad vars */
+static float r1 = -1;
+static float r2 = -1;
+static float r3 = 1;
+static float r4 = 1;
+static float p1 = 1;
+static float p2 = -1;
+static float p3 = -1;
+static float p4 = 1;
+static float cz = 1;
+
+/* stock */
 static struct {
-  uint32_t m1;
-  uint32_t m2;
-  uint32_t m3;
-  uint32_t m4;
+	uint32_t m1;
+	uint32_t m2;
+	uint32_t m3;
+	uint32_t m4;
 } motorPower;
 
 static struct {
-  uint16_t m1;
-  uint16_t m2;
-  uint16_t m3;
-  uint16_t m4;
+	uint16_t m1;
+	uint16_t m2;
+	uint16_t m3;
+	uint16_t m4;
 } motorPowerSet;
 
 void powerDistributionInit(void)
 {
-  motorsInit(platformConfigGetMotorMapping());
+	motorsInit(platformConfigGetMotorMapping());
 }
 
 bool powerDistributionTest(void)
 {
-  bool pass = true;
+	bool pass = true;
 
-  pass &= motorsTest();
+	pass &= motorsTest();
 
-  return pass;
+	return pass;
 }
 
 #define limitThrust(VAL) limitUint16(VAL)
 
 void powerStop()
 {
-  motorsSetRatio(MOTOR_M1, 0);
-  motorsSetRatio(MOTOR_M2, 0);
-  motorsSetRatio(MOTOR_M3, 0);
-  motorsSetRatio(MOTOR_M4, 0);
+	motorsSetRatio(MOTOR_M1, 0);
+	motorsSetRatio(MOTOR_M2, 0);
+	motorsSetRatio(MOTOR_M3, 0);
+	motorsSetRatio(MOTOR_M4, 0);
 }
 
 void powerDistribution(const control_t *control)
 {
-  #ifdef QUAD_FORMATION_X
-    int16_t r = control->roll / 2.0f;
-    int16_t p = control->pitch / 2.0f;
-    motorPower.m1 = limitThrust(control->thrust - r + p + control->yaw);
-    motorPower.m2 = limitThrust(control->thrust - r - p - control->yaw);
-    motorPower.m3 =  limitThrust(control->thrust + r - p + control->yaw);
-    motorPower.m4 =  limitThrust(control->thrust + r + p - control->yaw);
-  #else // QUAD_FORMATION_NORMAL
-    motorPower.m1 = limitThrust(control->thrust + control->pitch +
-                               control->yaw);
-    motorPower.m2 = limitThrust(control->thrust - control->roll -
-                               control->yaw);
-    motorPower.m3 =  limitThrust(control->thrust - control->pitch +
-                               control->yaw);
-    motorPower.m4 =  limitThrust(control->thrust + control->roll -
-                               control->yaw);
-  #endif
+#ifdef QUAD_FORMATION_X
+	int16_t r = control->roll / 2.0f;
+	int16_t p = control->pitch / 2.0f;
 
-  if (motorSetEnable)
-  {
-    motorsSetRatio(MOTOR_M1, motorPowerSet.m1);
-    motorsSetRatio(MOTOR_M2, motorPowerSet.m2);
-    motorsSetRatio(MOTOR_M3, motorPowerSet.m3);
-    motorsSetRatio(MOTOR_M4, motorPowerSet.m4);
-  }
-  else
-  {
-    motorsSetRatio(MOTOR_M1, motorPower.m1);
-    motorsSetRatio(MOTOR_M2, motorPower.m2);
-    motorsSetRatio(MOTOR_M3, motorPower.m3);
-    motorsSetRatio(MOTOR_M4, motorPower.m4);
-  }
+	/*** Modified for ModQuad - M13, M14, M15, M16, respectively ***/
+	motorPower.m1 = limitThrust(control->thrust  + r1*r + p1*p + cz*control->yaw);
+	motorPower.m2 = limitThrust(control->thrust  + r2*r + p2*p - cz*control->yaw);
+	motorPower.m3 =  limitThrust(control->thrust + r3*r + p3*p + cz*control->yaw);
+	motorPower.m4 =  limitThrust(control->thrust + r4*r + p4*p - cz*control->yaw);
+	/*** End Modified for ModQuad ***/
+
+#else /* QUAD_FORMATION_NORMAL */
+	motorPower.m1 = limitThrust(control->thrust + control->pitch +
+			control->yaw);
+	motorPower.m2 = limitThrust(control->thrust - control->roll -
+			control->yaw);
+	motorPower.m3 =  limitThrust(control->thrust - control->pitch +
+			control->yaw);
+	motorPower.m4 =  limitThrust(control->thrust + control->roll -
+			control->yaw);
+#endif
+
+
+	/*** Added for ModQuad ***/
+	/* The timer is reduced on every tick */
+	if (motor_set_timer){
+		motor_set_timer--;
+	}
+	/*** End Added for ModQuad ***/
+
+	if (motorSetEnable)
+	{
+		motorsSetRatio(MOTOR_M1, motorPowerSet.m1);
+		motorsSetRatio(MOTOR_M2, motorPowerSet.m2);
+		motorsSetRatio(MOTOR_M3, motorPowerSet.m3);
+		motorsSetRatio(MOTOR_M4, motorPowerSet.m4);
+	}
+	else
+	{
+		motorsSetRatio(MOTOR_M1, motorPower.m1);
+		motorsSetRatio(MOTOR_M2, motorPower.m2);
+		motorsSetRatio(MOTOR_M3, motorPower.m3);
+		motorsSetRatio(MOTOR_M4, motorPower.m4);
+	}
 }
+
+/*** Add for ModQuad ***/
+PARAM_GROUP_START(var)
+PARAM_ADD(PARAM_FLOAT, roll1, &r1)
+PARAM_ADD(PARAM_FLOAT, roll2, &r2)
+PARAM_ADD(PARAM_FLOAT, roll3, &r3)
+PARAM_ADD(PARAM_FLOAT, roll4, &r4)
+PARAM_ADD(PARAM_FLOAT, pitch1, &p1)
+PARAM_ADD(PARAM_FLOAT, pitch2, &p2)
+PARAM_ADD(PARAM_FLOAT, pitch3, &p3)
+PARAM_ADD(PARAM_FLOAT, pitch4, &p4)
+PARAM_ADD(PARAM_FLOAT, czz, &cz)
+PARAM_GROUP_STOP(var)
+/*** End Add for ModQuad ***/
 
 PARAM_GROUP_START(motorPowerSet)
 PARAM_ADD(PARAM_UINT8, enable, &motorSetEnable)
+
+/*** Add for ModQuad ***/
+/* Enable based on timer */
+PARAM_ADD(PARAM_UINT16, motor_timer, &motor_set_timer)  
+/*** End Add for ModQuad ***/
+
 PARAM_ADD(PARAM_UINT16, m1, &motorPowerSet.m1)
 PARAM_ADD(PARAM_UINT16, m2, &motorPowerSet.m2)
 PARAM_ADD(PARAM_UINT16, m3, &motorPowerSet.m3)
