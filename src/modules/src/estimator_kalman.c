@@ -179,10 +179,8 @@ static StaticSemaphore_t dataMutexBuffer;
  * Constants used in the estimator
  */
 
-#define CRAZYFLIE_WEIGHT_grams (132.0f)
-
 //thrust is thrust mapped for 65536 <==> 60 GRAMS!
-#define CONTROL_TO_ACC (GRAVITY_MAGNITUDE*280.0f/CRAZYFLIE_WEIGHT_grams/65536.0f)
+#define CONTROL_TO_ACC (GRAVITY_MAGNITUDE*60.0f/(CF_MASS*1000.0f)/65536.0f)
 
 
 /**
@@ -306,7 +304,7 @@ static void kalmanTask(void* parameters) {
     // If the client triggers an estimator reset via parameter update
     if (coreData.resetEstimation) {
       estimatorKalmanInit();
-      coreData.resetEstimation = false;
+      paramSetInt(paramGetVarId("kalman", "resetEstimation"), 0);
     }
 
     // Tracks whether an update to the state has been made, and the state therefore requires finalization

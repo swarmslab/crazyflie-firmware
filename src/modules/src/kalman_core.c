@@ -68,6 +68,7 @@
 #include "static_mem.h"
 
 #include "lighthouse_calibration.h"
+#include "pulse_processor.h"
 
 // #define DEBUG_STATE_CHECK
 
@@ -144,18 +145,6 @@ static float initialX = 0.0;
 static float initialY = 0.0;
 static float initialZ = 0.0;
 
-// // change for balanced modules
-// // F-plane parameters
-// static float rp11 = 0.984808;
-// static float rp12 = -0.0301537;
-// static float rp13 = -0.17101;
-// static float rp21 = 0.0;
-// static float rp22 = 0.984808;
-// static float rp23 = -0.173648;
-// static float rp31 = 0.173648;
-// static float rp32 = 0.17101;
-// static float rp33 = 0.969846;
-
 // Initial yaw of the Crazyflie in radians.
 // 0 --- facing positive X
 // PI / 2 --- facing positive Y
@@ -194,23 +183,10 @@ void kalmanCoreInit(kalmanCoreData_t* this) {
   initialQuaternion[3] = arm_sin_f32(initialYaw / 2);
   for (int i = 0; i < 4; i++) { this->q[i] = initialQuaternion[i]; }
 
-  // NOTE: changed for Balanced Module with roll = 10, pitch = -10 degrees
-  // The change does not work well
-  // TODO: change for balanced modules
-  // then set the initial rotation matrix to the default flat. This only affects
-  // the first prediction step after reset, since in the finalization, after shifting
+  // then set the initial rotation matrix to the identity. This only affects
+  // the first prediction step, since in the finalization, after shifting
   // attitude errors into the attitude state, the rotation matrix is updated.
-  // NOTE: for a standard quadrotor, should be:
   for(int i=0; i<3; i++) { for(int j=0; j<3; j++) { this->R[i][j] = i==j ? 1 : 0; }}
-  // this->R[0][0] = rp11;
-  // this->R[0][1] = rp21;
-  // this->R[0][2] = rp31;
-  // this->R[1][0] = rp12;
-  // this->R[1][1] = rp22;
-  // this->R[1][2] = rp32;
-  // this->R[2][0] = rp13;
-  // this->R[2][1] = rp23;
-  // this->R[2][2] = rp33;
 
   for (int i=0; i< KC_STATE_DIM; i++) {
     for (int j=0; j < KC_STATE_DIM; j++) {

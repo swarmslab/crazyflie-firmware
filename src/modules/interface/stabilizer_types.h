@@ -29,7 +29,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "imu_types.h"
-#include "pulse_processor.h"
 
 /* Data structure used by the stabilizer subsystem.
  * All have a timestamp to be set when the data is calculated.
@@ -164,6 +163,8 @@ typedef struct control_s {
   int16_t pitch;
   int16_t yaw;
   float thrust;
+  float thrustx;
+  float thrusty;
 } control_t;
 
 typedef enum mode_e {
@@ -246,6 +247,8 @@ typedef struct {
 } yawErrorMeasurement_t;
 
 /** Sweep angle measurement */
+// Forward declaration of lighthouse struct to avoid dependency.
+struct lighthouseCalibrationAxis_s;
 typedef struct {
   uint32_t timestamp;
   vec3d* sensorPos;          // Sensor position in the CF reference frame
@@ -255,8 +258,8 @@ typedef struct {
   float t;                   // t is the tilt angle of the light plane on the rotor
   float measuredSweepAngle;
   float stdDev;
-  lighthouseBaseStationType_t baseStationType;
-  const lighthouseCalibrationAxis_t* calib;
+  int baseStationType;       // Cast to lighthouseBaseStationType_t enum.
+  const struct lighthouseCalibrationAxis_s* calib;
 } sweepAngleMeasurement_t;
 
 // Frequencies to bo used with the RATE_DO_EXECUTE_HZ macro. Do NOT use an arbitrary number.
