@@ -33,8 +33,9 @@
 static float xy_mag = 0.6; // m
 static float interval = 5.0; // time interval for several trajectories (s)
 static float x_scale = 1.5; // scale motions on x a little bit
-static float oscillation_mag = 5.0; // degrees
-static float pitch_trim = -5.0;
+static float oscillation_mag = 0.17; // 10 degrees = 10*Pi/180 = 0.17 radians
+static float pitch_trim = 0.0;
+static float roll_trim = 0.0;
 
 void trajectory_square(float time_instance, setpoint_t *setpoint){
   // A square of side length xy_mag (m)
@@ -130,6 +131,33 @@ void trajectory_pitchosci(float t, setpoint_t *setpoint) {
     setpoint->attitude.pitch = 10;
   } else {
     setpoint->attitude.pitch = oscillation_mag*cosf(radians(18*t))-pitch_trim;
+    // 0.017 = Pi/180
+  }
+}
+
+void trajectory_rollosci(float t, setpoint_t *setpoint) {
+  setpoint->position.x = 0;
+  setpoint->position.y = 0;
+  setpoint->position.z = 0.45;
+  setpoint->attitude.roll = 0;
+  setpoint->attitude.yaw = 0;
+  setpoint->velocity.x = 0;
+  setpoint->velocity.y = 0;
+  setpoint->velocity.z = 0;
+  setpoint->attitude.roll = 0;
+  setpoint->attitude.pitch = 0;
+  setpoint->attitude.yaw = 0;
+  setpoint->attitudeRate.roll = 0;
+  setpoint->attitudeRate.pitch = 0;
+  setpoint->attitudeRate.yaw = 0;
+  setpoint->acceleration.x = 0;
+  setpoint->acceleration.y = 0;
+  setpoint->acceleration.z = 0;
+  if (t<=0){
+    setpoint->attitude.roll = 0.0;
+  } else {
+    setpoint->attitude.roll = oscillation_mag*cosf(radians(18*t))-roll_trim;
+    // 0.017 = Pi/180
   }
 }
 
@@ -154,3 +182,23 @@ void trajectory_takeoff(float t, setpoint_t *setpoint) {
 }
 
 void trajectory_landing(float t, setpoint_t *setpoint) {}
+
+void trajectory_fliphover(float t, setpoint_t *setpoint) {
+  setpoint->position.x = 0;
+  setpoint->position.y = 0;
+  setpoint->position.z = 0.45;
+  setpoint->attitude.roll = 0;
+  setpoint->attitude.yaw = 0;
+  setpoint->velocity.x = 0;
+  setpoint->velocity.y = 0;
+  setpoint->velocity.z = 0;
+  setpoint->attitude.roll = M_PI_F;
+  setpoint->attitude.pitch = 0;
+  setpoint->attitude.yaw = 0;
+  setpoint->attitudeRate.roll = 0;
+  setpoint->attitudeRate.pitch = 0;
+  setpoint->attitudeRate.yaw = 0;
+  setpoint->acceleration.x = 0;
+  setpoint->acceleration.y = 0;
+  setpoint->acceleration.z = 0;
+}

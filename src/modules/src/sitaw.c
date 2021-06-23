@@ -143,7 +143,7 @@ static void sitAwPreThrustUpdateCallOut(setpoint_t *setpoint)
 #ifdef SITAW_TU_ENABLED
       if(sitAwTuDetected()) {
         /* Kill the thrust to the motors if a Tumbled situation is detected. */
-        stabilizerSetEmergencyStop();
+        // stabilizerSetEmergencyStop();
       }
 #endif
 

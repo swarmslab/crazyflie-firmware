@@ -38,10 +38,17 @@
 static bool motorSetEnable = false;
 
 // F-frame parameters
-static float Ai[4][6] = {{-4., 0, 1.1547, -0.57735, 0.57735, 0.6},
-                          {4., -8., 1.1547, -0.57735, -0.57735, 0.6},
-                          {12., 0, 1.1547, 0.57735, -0.57735, 0.2},
-                          {4., 8., 1.1547, 0.57735, 0.57735, 0.2}};
+static float Ai[8][6] = {{5.86527, -1.86527, 1.41421, -1.51842, -1.51842, 0.555556},
+                        {-5.86527, -1.86527, 1.41421, -1.51842, 1.51842, -0.555556},
+                        {-5.86527, 1.86527, 1.41421, 1.51842, 1.51842, 0.555556},
+                        {5.86527, 1.86527, 1.41421, 1.51842, -1.51842, -0.555556},
+                        {1.86527, -5.86527, -1.41421, -1.51842, -1.51842, -0.555556},
+                        {-1.86527, -5.86527, -1.41421, -1.51842, 1.51842, 0.555556},
+                        {-1.86527, 5.86527, -1.41421, 1.51842, 1.51842, -0.555556},
+                        {1.86527, 5.86527, -1.41421, 1.51842, -1.51842, 0.555556}};
+static float null_base[8] =
+  {0.401276, 0.401276, 0.401276, 0.401276,
+    0.401276, 0.401276, 0.401276, 0.401276};
 
 static struct {
   uint32_t m1;
@@ -77,7 +84,7 @@ bool powerDistributionTest(void)
   return pass;
 }
 
-#define limitThrust(VAL) limitUint16(VAL)
+#define limitThrust(VAL) ((VAL<=0||VAL>10000)?limitUint16(VAL):15000)
 
 void powerStop()
 {
@@ -89,16 +96,31 @@ void powerStop()
 
 void powerDistribution(const control_t *control)
 {
+  float motorPowerTemp[8];
   #ifdef QUAD_FORMATION_X
     float r = control->roll;
     float p = control->pitch;
     float y = control->yaw;
     //
     /*** Modified for H-ModQuad ***/
-    motorPower.m1 = limitThrust(Ai[0][0]*control->thrustx + Ai[0][1]*control->thrusty + Ai[0][2]*control->thrust + Ai[0][3]*r + Ai[0][4]*p + Ai[0][5]*y);
-    motorPower.m2 = limitThrust(Ai[1][0]*control->thrustx + Ai[1][1]*control->thrusty + Ai[1][2]*control->thrust + Ai[1][3]*r + Ai[1][4]*p + Ai[1][5]*y);
-    motorPower.m3 = limitThrust(Ai[2][0]*control->thrustx + Ai[2][1]*control->thrusty + Ai[2][2]*control->thrust + Ai[2][3]*r + Ai[2][4]*p + Ai[2][5]*y);
-    motorPower.m4 = limitThrust(Ai[3][0]*control->thrustx + Ai[3][1]*control->thrusty + Ai[3][2]*control->thrust + Ai[3][3]*r + Ai[3][4]*p + Ai[3][5]*y);
+    int module_index = 0;
+    float min_force_div = 0.0;
+    for (int i = 0; i < 8; i++) {
+      motorPowerTemp[i] = Ai[i][0] * control->thrustx +
+                          Ai[i][1] * control->thrusty +
+                          Ai[i][2] * control->thrust +
+                          Ai[i][3] * r +
+                          Ai[i][4] * p +
+                          Ai[i][5] * y;
+      if(motorPowerTemp[i] / null_base[i] < min_force_div) {
+        min_force_div = motorPowerTemp[i] / null_base[i];
+      }
+    }
+
+    motorPower.m1 = limitThrust(motorPowerTemp[0 + 4*module_index] - null_base[0 + 4*module_index]*min_force_div);
+    motorPower.m2 = limitThrust(motorPowerTemp[1 + 4*module_index] - null_base[1 + 4*module_index]*min_force_div);
+    motorPower.m3 = limitThrust(motorPowerTemp[2 + 4*module_index] - null_base[2 + 4*module_index]*min_force_div);
+    motorPower.m4 = limitThrust(motorPowerTemp[3 + 4*module_index] - null_base[3 + 4*module_index]*min_force_div);
     /*** End Modified for ModQuad ***/
   #else // QUAD_FORMATION_NORMAL
     motorPower.m1 = limitThrust(control->thrust + control->pitch +

@@ -115,12 +115,14 @@ static float r_pitch;
 static float r_yaw;
 static float accelz;
 
+struct vec eR;
+
 // counter:
 // static uint16_t counter = 0;
 
 // trajectory parameters
 static float time_instance = 0.0;
-static uint8_t trajectory_type = 1;
+static uint8_t trajectory_type = 4;
 
 void controllerMellingerReset(void)
 {
@@ -156,16 +158,11 @@ void controllerMellinger(control_t *control, setpoint_t *setpoint,
   float current_thrust;
   float current_thrust_x;
   float current_thrust_y;
-  /* Modified for H-ModQuad 5 DOF */
-  // struct vec z_c_desired;
   struct vec x_axis_desired;
   struct vec y_axis_desired;
   struct vec z_axis_desired;
-  /* End modified for H-ModQuad 5 DOF */
-  // struct vec x_axis_desired;
-  // struct vec y_axis_desired;
-  // struct vec x_c_des;
-  struct vec eR, ew, M;
+
+  struct vec ew, M;
   float dt;
   float desiredRoll = 0.0; // degrees
   float desiredPitch = 0.0; // degrees
@@ -181,8 +178,10 @@ void controllerMellinger(control_t *control, setpoint_t *setpoint,
     case 0: trajectory_square(time_instance, setpoint); break;
     case 1: trajectory_circle(time_instance, setpoint); break;
     case 2: trajectory_pitchosci(time_instance, setpoint); break;
-    case 3: trajectory_takeoff(time_instance, setpoint); break;
-    case 4: trajectory_landing(time_instance, setpoint); break;
+    case 3: trajectory_rollosci(time_instance, setpoint); break;
+    case 4: trajectory_takeoff(time_instance, setpoint); break;
+    case 5: trajectory_landing(time_instance, setpoint); break;
+    case 6: trajectory_fliphover(time_instance, setpoint); break;
   }
 
   /* *****************************/
@@ -208,35 +207,13 @@ void controllerMellinger(control_t *control, setpoint_t *setpoint,
   i_error_y = clamp(i_error_y, -i_range_y, i_range_y);
 
   // Desired thrust [F_des]
-  // if (setpoint->mode.x == modeAbs) {
   target_thrust.x = g_vehicleMass * setpoint->acceleration.x                       + kp_x * r_error.x + kd_x * v_error.x + ki_x * i_error_x;
   target_thrust.y = g_vehicleMass * setpoint->acceleration.y                       + kp_y * r_error.y + kd_y * v_error.y + ki_y * i_error_y;
   target_thrust.z = g_vehicleMass * (setpoint->acceleration.z + GRAVITY_MAGNITUDE) + kp_z  * r_error.z + kd_z  * v_error.z + ki_z  * i_error_z;
-  // } else {
-  //   target_thrust.x = -sinf(radians(setpoint->attitude.pitch));
-  //   target_thrust.y = -sinf(radians(setpoint->attitude.roll));
-  //   // In case of a timeout, the commander tries to level, ie. x/y are disabled, but z will use the previous setting
-  //   // In that case we ignore the last feedforward term for acceleration
-  //   if (setpoint->mode.z == modeAbs) {
-  //     target_thrust.z = g_vehicleMass * GRAVITY_MAGNITUDE + kp_z  * r_error.z + kd_z  * v_error.z + ki_z  * i_error_z;
-  //   } else {
-  //     target_thrust.z = 1;
-  //   }
-  // }
 
-  // // Rate-controlled YAW is moving YAW angle setpoint
-  // if (setpoint->mode.yaw == modeVelocity) {
-  //   desiredYaw = state->attitude.yaw + setpoint->attitudeRate.yaw * dt;
-  // } else if (setpoint->mode.yaw == modeAbs) {
   desiredYaw = setpoint->attitude.yaw;
   desiredPitch = setpoint->attitude.pitch;
   desiredRoll = setpoint->attitude.roll;
-
-  // } else if (setpoint->mode.quat == modeAbs) {
-  //   struct quat setpoint_quat = mkquat(setpoint->attitudeQuaternion.x, setpoint->attitudeQuaternion.y, setpoint->attitudeQuaternion.z, setpoint->attitudeQuaternion.w);
-  //   struct vec rpy = quat2rpy(setpoint_quat);
-  //   desiredYaw = degrees(rpy.z);
-  // }
 
   // Z-Axis [zB]
   struct quat q = mkquat(state->attitudeQuaternion.x, state->attitudeQuaternion.y, state->attitudeQuaternion.z, state->attitudeQuaternion.w);
@@ -244,16 +221,6 @@ void controllerMellinger(control_t *control, setpoint_t *setpoint,
   z_axis = mcolumn(R, 2);
   y_axis = mcolumn(R, 1);
   x_axis = mcolumn(R, 0);
-
-  // // yaw correction (only if position control is not used)
-  // if (setpoint->mode.x != modeAbs) {
-  //   struct vec x_yaw = mcolumn(R, 0);
-  //   x_yaw.z = 0;
-  //   x_yaw = vnormalize(x_yaw);
-  //   struct vec y_yaw = vcross(mkvec(0, 0, 1), x_yaw);
-  //   struct mat33 R_yaw_only = mcolumns(x_yaw, y_yaw, mkvec(0, 0, 1));
-  //   target_thrust = mvmul(R_yaw_only, target_thrust);
-  // }
 
   // thrust in F-plane
   // fz
@@ -268,16 +235,6 @@ void controllerMellinger(control_t *control, setpoint_t *setpoint,
   z_axis_desired = mcolumn(Rd, 2);
   y_axis_desired = mcolumn(Rd, 1);
   x_axis_desired = mcolumn(Rd, 0);
-
-  // if (counter > 700) {
-  //   DEBUG_PRINT("-%f, %f, %f-\n", (double) Rd.m[0][0], (double) Rd.m[0][1], (double) Rd.m[0][2]);
-  //   DEBUG_PRINT("|%f, %f, %f|)\n", (double) Rd.m[1][0], (double) Rd.m[1][1], (double) Rd.m[1][2]);
-  //   DEBUG_PRINT("-%f, %f, %f-)\n", (double) Rd.m[2][0], (double) Rd.m[2][1], (double) Rd.m[2][2]);
-  //   DEBUG_PRINT("\n");
-  //   counter = 0;
-  // } else {
-  //   counter++;
-  // }
 
   // [eR]
   // Slow version
@@ -344,11 +301,28 @@ void controllerMellinger(control_t *control, setpoint_t *setpoint,
 
   // Output
   if (setpoint->mode.z == modeDisable) {
-    control->thrust = setpoint->thrust;
-    control->thrustx = clamp(current_thrust_x*massThrust, -4000, 4000);
-    control->thrusty = clamp(current_thrust_y*massThrust, -4000, 4000);
+    // This is the really executed command
+    // if (setpoint->thrust > 0){
+    if (time_instance > 0){
+      control->thrust = massThrust * current_thrust;
+      // control->thrustx = clamp(current_thrust_x*massThrust, -2000, 2000);
+      // control->thrusty = clamp(current_thrust_y*massThrust, -2000, 2000);
+      control->thrustx = current_thrust_x*massThrust;
+      control->thrusty = current_thrust_y*massThrust;
+    } else {
+      control->thrust = 0;
+      control->thrustx = 0;
+      control->thrusty = 0;
+    }
+    // control->thrust = setpoint->thrust;
+    // control->thrustx = clamp(current_thrust_x*setpoint->thrust/current_thrust, -2000, 2000);
+    // control->thrusty = clamp(current_thrust_y*setpoint->thrust/current_thrust, -2000, 2000);
+    // control->thrustx = current_thrust_x*setpoint->thrust/current_thrust;
+    // control->thrusty = current_thrust_y*setpoint->thrust/current_thrust;
   } else {
     control->thrust = massThrust * current_thrust;
+    // control->thrustx = clamp(current_thrust_x*massThrust, -2000, 2000);
+    // control->thrusty = clamp(current_thrust_y*massThrust, -2000, 2000);
     control->thrustx = current_thrust_x*massThrust;
     control->thrusty = current_thrust_y*massThrust;
   }
@@ -362,10 +336,13 @@ void controllerMellinger(control_t *control, setpoint_t *setpoint,
   accelz = sensors->acc.z;
 
   if (control->thrust > 0) {
-    control->thrust = massThrust*current_thrust;
-    control->roll = clamp(M.x, -32000, 32000);
-    control->pitch = clamp(M.y, -32000, 32000);
-    control->yaw = clamp(-M.z, -32000, 32000);
+    // control->thrust = massThrust*current_thrust;
+    // control->roll = clamp(M.x, -32000, 32000);
+    // control->pitch = clamp(M.y, -32000, 32000);
+    // control->yaw = clamp(-M.z, -32000, 32000);
+    control->roll = M.x;
+    control->pitch = M.y;
+    control->yaw = -M.z;
 
     cmd_thrust = control->thrust;
     cmd_roll = control->roll;
@@ -439,4 +416,7 @@ LOG_ADD(LOG_FLOAT, zdz, &z_axis_desired.z)
 LOG_ADD(LOG_FLOAT, i_err_x, &i_error_x)
 LOG_ADD(LOG_FLOAT, i_err_y, &i_error_y)
 LOG_ADD(LOG_FLOAT, i_err_z, &i_error_z)
+LOG_ADD(LOG_FLOAT, eRx, &eR.x)
+LOG_ADD(LOG_FLOAT, eRy, &eR.y)
+LOG_ADD(LOG_FLOAT, eRz, &eR.z)
 LOG_GROUP_STOP(ctrlMel)

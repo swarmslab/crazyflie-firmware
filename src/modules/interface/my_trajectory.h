@@ -30,7 +30,9 @@
 void trajectory_square(float t, setpoint_t *setpoint);
 void trajectory_circle(float t, setpoint_t *setpoint);
 void trajectory_pitchosci(float t, setpoint_t *setpoint);
+void trajectory_rollosci(float t, setpoint_t *setpoint);
 void trajectory_takeoff(float t, setpoint_t *setpoint);
 void trajectory_landing(float t, setpoint_t *setpoint);
+void trajectory_fliphover(float t, setpoint_t *setpoint);
 
 #endif //__MY_TRAJECTORY_H__
