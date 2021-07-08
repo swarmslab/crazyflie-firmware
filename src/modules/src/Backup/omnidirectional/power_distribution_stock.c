@@ -38,42 +38,15 @@
 static bool motorSetEnable = false;
 
 // F-frame parameters
-static float Ai[4][6] = {{0.11, 0.12, 0.0883883, 0.353553, 1.06066, 0.416667},
-{-0.13, 0.12, 0.0883883, 0.353553, 0.353553, 0.416667},
-{-0.13, -0.14, 0.0883883, 1.06066, 0.353553, 0.416667},
-{0.11, -0.14, 0.0883883, 1.06066, 1.06066, -1.25}};
-/* For the 2x2 T-module structure shown in the H-ModQuad extension paper,
-the complete matrix is:
-
-  {{-0.14, -0.11, 0.0883883, -1.06066, 1.06066, -1.25},
-  {0.12, -0.11, 0.0883883, -1.06066, 0.353553, 0.416667},
-  {0.12, 0.13, 0.0883883, -0.353553, 0.353553, 0.416667},
-  {-0.14, 0.13, 0.0883883, -0.353553, 1.06066, 0.416667},
-
-  {0.13, 0.14, 0.0883883, -1.06066, -0.353553, 0.416667},
-  {-0.11, 0.14, 0.0883883, -1.06066, -1.06066, -1.25},
-  {-0.11, -0.12, 0.0883883, -0.353553, -1.06066, 0.416667},
-  {0.13, -0.12, 0.0883883, -0.353553, -0.353553, 0.416667},
-
-  {-0.12, -0.13, 0.0883883, 0.353553, -0.353553, 0.416667},
-  {0.14, -0.13, 0.0883883, 0.353553, -1.06066, 0.416667},
-  {0.14, 0.11, 0.0883883, 1.06066, -1.06066, -1.25},
-  {-0.12, 0.11, 0.0883883, 1.06066, -0.353553, 0.416667},
-
-  {0.11, 0.12, 0.0883883, 0.353553, 1.06066, 0.416667},
-  {-0.13, 0.12, 0.0883883, 0.353553, 0.353553, 0.416667},
-  {-0.13, -0.14, 0.0883883, 1.06066, 0.353553, 0.416667},
-  {0.11, -0.14, 0.0883883, 1.06066, 1.06066, -1.25}}
-
-  // Every 4x6 matrix serves a module. Typically, the module
-  // index follows the motor index rules as:
-  // 4 | 1
-  // -----
-  // 3 | 2
-  // For all modules in the same structure, the controller should
-  // be the same, and the only difference (distributed actuation) is
-  // here in the power distribution
-*/
+static float Ai[8][6] = {{4.95065, -0.950647, 1.41421, -41.7284, -41.7284, 20.},
+                        {-4.95065, -0.950647, 1.41421, -41.7284, 41.7284, -20.},
+                        {-4.95065, 0.950647, 1.41421, 41.7284, 41.7284, 20.},
+                        {4.95065, 0.950647, 1.41421, 41.7284, -41.7284, -20.},
+                        {0.950647, -4.95065, -1.41421, -41.7284, -41.7284, -20.},
+                        {-0.950647, -4.95065, -1.41421, -41.7284, 41.7284, 20.},
+                        {-0.950647, 4.95065, -1.41421, 41.7284, 41.7284, -20.},
+                        {0.950647, 4.95065, -1.41421, 41.7284, -41.7284, 20.}};
+static float null_base[8] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
 
 static struct {
   uint32_t m1;
@@ -109,7 +82,7 @@ bool powerDistributionTest(void)
   return pass;
 }
 
-#define limitThrust(VAL) limitUint16(VAL)
+#define limitThrust(VAL) ((VAL>8000)?limitUint16(VAL):8000)
 
 void powerStop()
 {
@@ -121,16 +94,33 @@ void powerStop()
 
 void powerDistribution(const control_t *control)
 {
+  float motorPowerTemp[8];
   #ifdef QUAD_FORMATION_X
     float r = control->roll;
     float p = control->pitch;
     float y = control->yaw;
     //
     /*** Modified for H-ModQuad ***/
-    motorPower.m1 = limitThrust(Ai[0][0]*control->thrustx + Ai[0][1]*control->thrusty + Ai[0][2]*control->thrust + Ai[0][3]*r + Ai[0][4]*p + Ai[0][5]*y);
-    motorPower.m2 = limitThrust(Ai[1][0]*control->thrustx + Ai[1][1]*control->thrusty + Ai[1][2]*control->thrust + Ai[1][3]*r + Ai[1][4]*p + Ai[1][5]*y);
-    motorPower.m3 = limitThrust(Ai[2][0]*control->thrustx + Ai[2][1]*control->thrusty + Ai[2][2]*control->thrust + Ai[2][3]*r + Ai[2][4]*p + Ai[2][5]*y);
-    motorPower.m4 = limitThrust(Ai[3][0]*control->thrustx + Ai[3][1]*control->thrusty + Ai[3][2]*control->thrust + Ai[3][3]*r + Ai[3][4]*p + Ai[3][5]*y);
+    int module_index = 0;
+    float min_force_div = 0.0;
+    for (int i = 0; i < 8; i++) {
+      motorPowerTemp[i] = Ai[i][0] * control->thrustx +
+                          Ai[i][1] * control->thrusty +
+                          Ai[i][2] * control->thrust +
+                          Ai[i][3] * r +
+                          Ai[i][4] * p +
+                          Ai[i][5] * y;
+      if(motorPowerTemp[i] / null_base[i] < min_force_div) {
+        min_force_div = motorPowerTemp[i] / null_base[i];
+      }
+    }
+
+    if(control->thrust>0 || control->thrustx>0 || control->thrusty>0) {
+      motorPower.m1 = limitThrust(motorPowerTemp[0 + 4*module_index] - null_base[0 + 4*module_index]*min_force_div);
+      motorPower.m2 = limitThrust(motorPowerTemp[1 + 4*module_index] - null_base[1 + 4*module_index]*min_force_div);
+      motorPower.m3 = limitThrust(motorPowerTemp[2 + 4*module_index] - null_base[2 + 4*module_index]*min_force_div);
+      motorPower.m4 = limitThrust(motorPowerTemp[3 + 4*module_index] - null_base[3 + 4*module_index]*min_force_div);
+    }
     /*** End Modified for ModQuad ***/
   #else // QUAD_FORMATION_NORMAL
     motorPower.m1 = limitThrust(control->thrust + control->pitch +

@@ -31,6 +31,7 @@
 #include "math3d.h"
 
 static float xy_mag = 0.6; // m
+static float height = 0.5;
 static float interval = 5.0; // time interval for several trajectories (s)
 static float x_scale = 1.5; // scale motions on x a little bit
 static float oscillation_mag = 0.17; // 10 degrees = 10*Pi/180 = 0.17 radians
@@ -68,7 +69,7 @@ void trajectory_square(float time_instance, setpoint_t *setpoint){
     y_vel = 0;
     // y_vel = (float)-fabs(2*xy_mag/(interval*interval)*(time_instance-(float)3.5*interval))+xy_mag/interval;
   }
-  z = 0.45;
+  z = height;
   setpoint->position.x = x;
   setpoint->position.y = y;
   setpoint->position.z = z;
@@ -112,7 +113,7 @@ void trajectory_circle(float t, setpoint_t *setpoint) {
 void trajectory_pitchosci(float t, setpoint_t *setpoint) {
   setpoint->position.x = 0;
   setpoint->position.y = 0;
-  setpoint->position.z = 0.45;
+  setpoint->position.z = height;
   setpoint->attitude.roll = 0;
   setpoint->attitude.yaw = 0;
   setpoint->velocity.x = 0;
@@ -128,9 +129,9 @@ void trajectory_pitchosci(float t, setpoint_t *setpoint) {
   setpoint->acceleration.y = 0;
   setpoint->acceleration.z = 0;
   if (t<=0){
-    setpoint->attitude.pitch = 10;
+    setpoint->attitude.pitch = 0.0;
   } else {
-    setpoint->attitude.pitch = oscillation_mag*cosf(radians(18*t))-pitch_trim;
+    setpoint->attitude.pitch = oscillation_mag*sinf(radians(18*t))-pitch_trim;
     // 0.017 = Pi/180
   }
 }
@@ -138,7 +139,7 @@ void trajectory_pitchosci(float t, setpoint_t *setpoint) {
 void trajectory_rollosci(float t, setpoint_t *setpoint) {
   setpoint->position.x = 0;
   setpoint->position.y = 0;
-  setpoint->position.z = 0.45;
+  setpoint->position.z = height;
   setpoint->attitude.roll = 0;
   setpoint->attitude.yaw = 0;
   setpoint->velocity.x = 0;
@@ -156,15 +157,15 @@ void trajectory_rollosci(float t, setpoint_t *setpoint) {
   if (t<=0){
     setpoint->attitude.roll = 0.0;
   } else {
-    setpoint->attitude.roll = oscillation_mag*cosf(radians(18*t))-roll_trim;
-    // 0.017 = Pi/180
+    setpoint->attitude.roll = oscillation_mag*sinf(radians(18*t))-roll_trim;
+    // 0.17 = 10*Pi/180
   }
 }
 
 void trajectory_takeoff(float t, setpoint_t *setpoint) {
   setpoint->position.x = 0;
   setpoint->position.y = 0;
-  setpoint->position.z = 0.45;
+  setpoint->position.z = height;
   setpoint->attitude.roll = 0;
   setpoint->attitude.yaw = 0;
   setpoint->velocity.x = 0;
@@ -186,7 +187,7 @@ void trajectory_landing(float t, setpoint_t *setpoint) {}
 void trajectory_fliphover(float t, setpoint_t *setpoint) {
   setpoint->position.x = 0;
   setpoint->position.y = 0;
-  setpoint->position.z = 0.45;
+  setpoint->position.z = height;
   setpoint->attitude.roll = 0;
   setpoint->attitude.yaw = 0;
   setpoint->velocity.x = 0;
@@ -202,3 +203,28 @@ void trajectory_fliphover(float t, setpoint_t *setpoint) {
   setpoint->acceleration.y = 0;
   setpoint->acceleration.z = 0;
 }
+
+void trajectory_biaspitch(float t, setpoint_t *setpoint) {
+  setpoint->position.x = 0;
+  setpoint->position.y = 0;
+  setpoint->position.z = height;
+  setpoint->attitude.roll = 0;
+  setpoint->attitude.yaw = 0;
+  setpoint->velocity.x = 0;
+  setpoint->velocity.y = 0;
+  setpoint->velocity.z = 0;
+  setpoint->attitude.roll = 0;
+  setpoint->attitude.pitch = oscillation_mag;
+  setpoint->attitude.yaw = 0;
+  setpoint->attitudeRate.roll = 0;
+  setpoint->attitudeRate.pitch = 0;
+  setpoint->attitudeRate.yaw = 0;
+  setpoint->acceleration.x = 0;
+  setpoint->acceleration.y = 0;
+  setpoint->acceleration.z = 0;
+}
+
+PARAM_GROUP_START(myTraj)
+PARAM_ADD(PARAM_FLOAT, oscmagnitude, &oscillation_mag)
+PARAM_ADD(PARAM_FLOAT, height, &height)
+PARAM_GROUP_STOP(myTraj)

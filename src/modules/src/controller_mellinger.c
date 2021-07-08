@@ -86,6 +86,14 @@ static float i_range_m_z  = 1500;
 // roll and pitch angular velocity
 static float kd_omega_rp = 200; // D
 
+// 6DoF specific initial integral variables
+static float i_error_x_init = 0;
+static float i_error_y_init = 0;
+static float i_error_z_init = 0;
+
+static float i_error_m_x_init = 0;
+static float i_error_m_y_init = 0;
+static float i_error_m_z_init = 0;
 
 // Helper variables
 static float i_error_x = 0;
@@ -102,7 +110,7 @@ static float i_error_m_y = 0;
 static float i_error_m_z = 0;
 
 // Logging variables
-static struct vec z_axis_desired;
+// static struct vec z_axis_desired;
 
 static float cmd_thrust;
 static float cmd_thrust_x;
@@ -110,12 +118,13 @@ static float cmd_thrust_y;
 static float cmd_roll;
 static float cmd_pitch;
 static float cmd_yaw;
-static float r_roll;
-static float r_pitch;
-static float r_yaw;
-static float accelz;
+// static float r_roll;
+// static float r_pitch;
+// static float r_yaw;
+// static float accelz;
 
 struct vec eR;
+struct vec r_error;
 
 // counter:
 // static uint16_t counter = 0;
@@ -126,12 +135,12 @@ static uint8_t trajectory_type = 4;
 
 void controllerMellingerReset(void)
 {
-  i_error_x = 0;
-  i_error_y = 0;
-  i_error_z = 0;
-  i_error_m_x = 0;
-  i_error_m_y = 0;
-  i_error_m_z = 0;
+  i_error_x = i_error_x_init;
+  i_error_y = i_error_y_init;
+  i_error_z = i_error_z_init;
+  i_error_m_x = i_error_m_x_init;
+  i_error_m_y = i_error_m_y_init;
+  i_error_m_z = i_error_m_z_init;
 }
 
 void controllerMellingerInit(void)
@@ -149,7 +158,6 @@ void controllerMellinger(control_t *control, setpoint_t *setpoint,
                                          const state_t *state,
                                          const uint32_t tick)
 {
-  struct vec r_error;
   struct vec v_error;
   struct vec target_thrust;
   struct vec z_axis;
@@ -182,6 +190,7 @@ void controllerMellinger(control_t *control, setpoint_t *setpoint,
     case 4: trajectory_takeoff(time_instance, setpoint); break;
     case 5: trajectory_landing(time_instance, setpoint); break;
     case 6: trajectory_fliphover(time_instance, setpoint); break;
+    case 7: trajectory_biaspitch(time_instance, setpoint); break;
   }
 
   /* *****************************/
@@ -302,8 +311,7 @@ void controllerMellinger(control_t *control, setpoint_t *setpoint,
   // Output
   if (setpoint->mode.z == modeDisable) {
     // This is the really executed command
-    // if (setpoint->thrust > 0){
-    if (time_instance > 0){
+    if (setpoint->thrust > 0){
       control->thrust = massThrust * current_thrust;
       // control->thrustx = clamp(current_thrust_x*massThrust, -2000, 2000);
       // control->thrusty = clamp(current_thrust_y*massThrust, -2000, 2000);
@@ -330,10 +338,10 @@ void controllerMellinger(control_t *control, setpoint_t *setpoint,
   cmd_thrust = control->thrust;
   cmd_thrust_x = control->thrustx;
   cmd_thrust_y = control->thrusty;
-  r_roll = radians(sensors->gyro.x);
-  r_pitch = -radians(sensors->gyro.y);
-  r_yaw = radians(sensors->gyro.z);
-  accelz = sensors->acc.z;
+  // r_roll = radians(sensors->gyro.x);
+  // r_pitch = -radians(sensors->gyro.y);
+  // r_yaw = radians(sensors->gyro.z);
+  // accelz = sensors->acc.z;
 
   if (control->thrust > 0) {
     // control->thrust = massThrust*current_thrust;
@@ -395,28 +403,40 @@ PARAM_ADD(PARAM_FLOAT, kd_omega_rp, &kd_omega_rp)
 PARAM_ADD(PARAM_FLOAT, i_range_m_x, &i_range_m_x)
 PARAM_ADD(PARAM_FLOAT, i_range_m_y, &i_range_m_y)
 PARAM_ADD(PARAM_FLOAT, i_range_m_z, &i_range_m_z)
+PARAM_ADD(PARAM_FLOAT, i_m_err_x_init, &i_error_m_x_init)
+PARAM_ADD(PARAM_FLOAT, i_m_err_y_init, &i_error_m_y_init)
+PARAM_ADD(PARAM_FLOAT, i_m_err_z_init, &i_error_m_z_init)
+PARAM_ADD(PARAM_FLOAT, i_err_x_init, &i_error_x_init)
+PARAM_ADD(PARAM_FLOAT, i_err_y_init, &i_error_y_init)
+PARAM_ADD(PARAM_FLOAT, i_err_z_init, &i_error_z_init)
 PARAM_ADD(PARAM_FLOAT, time_instance, &time_instance)
 PARAM_ADD(PARAM_UINT8, trajectory_type, &trajectory_type)
 PARAM_GROUP_STOP(ctrlMel)
 
 LOG_GROUP_START(ctrlMel)
-LOG_ADD(LOG_FLOAT, cmd_thrust, &cmd_thrust)
-LOG_ADD(LOG_FLOAT, cmd_thrust_x, &cmd_thrust_x)
-LOG_ADD(LOG_FLOAT, cmd_thrust_y, &cmd_thrust_y)
+// LOG_ADD(LOG_FLOAT, cmd_thrust, &cmd_thrust)
+// LOG_ADD(LOG_FLOAT, cmd_thrust_x, &cmd_thrust_x)
+// LOG_ADD(LOG_FLOAT, cmd_thrust_y, &cmd_thrust_y)
 LOG_ADD(LOG_FLOAT, cmd_roll, &cmd_roll)
 LOG_ADD(LOG_FLOAT, cmd_pitch, &cmd_pitch)
 LOG_ADD(LOG_FLOAT, cmd_yaw, &cmd_yaw)
-LOG_ADD(LOG_FLOAT, r_roll, &r_roll)
-LOG_ADD(LOG_FLOAT, r_pitch, &r_pitch)
-LOG_ADD(LOG_FLOAT, r_yaw, &r_yaw)
-LOG_ADD(LOG_FLOAT, accelz, &accelz)
-LOG_ADD(LOG_FLOAT, zdx, &z_axis_desired.x)
-LOG_ADD(LOG_FLOAT, zdy, &z_axis_desired.y)
-LOG_ADD(LOG_FLOAT, zdz, &z_axis_desired.z)
+// LOG_ADD(LOG_FLOAT, r_roll, &r_roll)
+// LOG_ADD(LOG_FLOAT, r_pitch, &r_pitch)
+// LOG_ADD(LOG_FLOAT, r_yaw, &r_yaw)
+// LOG_ADD(LOG_FLOAT, accelz, &accelz)
+// LOG_ADD(LOG_FLOAT, zdx, &z_axis_desired.x)
+// LOG_ADD(LOG_FLOAT, zdy, &z_axis_desired.y)
+// LOG_ADD(LOG_FLOAT, zdz, &z_axis_desired.z)
+LOG_ADD(LOG_FLOAT, i_m_err_x, &i_error_m_x)
+LOG_ADD(LOG_FLOAT, i_m_err_y, &i_error_m_y)
+LOG_ADD(LOG_FLOAT, i_m_err_z, &i_error_m_z)
 LOG_ADD(LOG_FLOAT, i_err_x, &i_error_x)
 LOG_ADD(LOG_FLOAT, i_err_y, &i_error_y)
 LOG_ADD(LOG_FLOAT, i_err_z, &i_error_z)
-LOG_ADD(LOG_FLOAT, eRx, &eR.x)
-LOG_ADD(LOG_FLOAT, eRy, &eR.y)
-LOG_ADD(LOG_FLOAT, eRz, &eR.z)
+// LOG_ADD(LOG_FLOAT, eRx, &eR.x)
+// LOG_ADD(LOG_FLOAT, eRy, &eR.y)
+// LOG_ADD(LOG_FLOAT, eRz, &eR.z)
+// LOG_ADD(LOG_FLOAT, ex, &r_error.x)
+// LOG_ADD(LOG_FLOAT, ey, &r_error.y)
+// LOG_ADD(LOG_FLOAT, ez, &r_error.z)
 LOG_GROUP_STOP(ctrlMel)
